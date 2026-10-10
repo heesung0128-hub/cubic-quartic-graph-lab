@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Activity, Gamepad2, LineChart, Target } from 'lucide-react'
 import ModeGuide from './components/ModeGuide'
 import Visualizer from './modes/Visualizer'
-import Quiz from './modes/Quiz'
+import QuizHub from './modes/QuizHub'
 import ParameterGame from './modes/ParameterGame'
 import Advanced from './modes/Advanced'
 
@@ -24,16 +24,17 @@ const TABS = [
   },
   {
     id: 'quiz',
-    label: '개형 맞히기',
+    label: '개형·증감표 퀴즈',
     short: '퀴즈',
     icon: Target,
-    comp: Quiz,
+    comp: QuizHub,
     guide: {
       title: '도함수 그래프만 보고 원함수의 개형을 맞혀 보세요',
       steps: [
         'f′가 x축과 만나면서 부호가 바뀌는 곳을 찾으세요. (+ → − 이면 극대, − → + 이면 극소)',
         '▲ 극대 / ▼ 극소 중 하나를 고르고, 그래프의 x축 근처를 탭해 표시하세요.',
         '알맞은 f(x) 개형을 고르고 [제출하고 채점]을 누르세요. 막히면 힌트를 사용할 수 있어요.',
+        '위쪽의 [증감표 채우기]를 누르면 표의 빈칸을 직접 채우는 문제도 풀 수 있어요.',
       ],
     },
   },

@@ -1,4 +1,5 @@
-import { criticalPoints, derivative, evalPoly, fmt, type Coeffs } from '../utils/math'
+import { fmt, type Coeffs } from '../utils/math'
+import { signCells } from '../utils/signCells'
 
 interface Props {
   f: Coeffs
@@ -6,24 +7,10 @@ interface Props {
   highlightX?: number
 }
 
-type Cell =
-  | { kind: 'interval'; sign: number; index: number }
-  | { kind: 'point'; x: number; y: number; type: 'max' | 'min' | 'flat'; index: number }
-
 /** 증감표: x, f′(x)의 부호, f(x)의 증가/감소와 극값 */
 export default function SignTable({ f, highlightX }: Props) {
-  const fp = derivative(f)
-  const crit = criticalPoints(f)
-  const xs = crit.map((c) => c.x)
-
-  const cells: Cell[] = []
-  for (let i = 0; i <= xs.length; i++) {
-    const lo = i === 0 ? (xs[0] ?? 0) - 1 : xs[i - 1]
-    const hi = i === xs.length ? (xs[xs.length - 1] ?? 0) + 1 : xs[i]
-    const mid = xs.length === 0 ? 0 : (lo + hi) / 2
-    cells.push({ kind: 'interval', sign: Math.sign(evalPoly(fp, mid)), index: i })
-    if (i < xs.length) cells.push({ kind: 'point', ...crit[i], index: i })
-  }
+  const cells = signCells(f)
+  const xs = cells.filter((c) => c.kind === 'point').map((c) => (c.kind === 'point' ? c.x : 0))
 
   let hi = -1
   if (highlightX !== undefined) {
