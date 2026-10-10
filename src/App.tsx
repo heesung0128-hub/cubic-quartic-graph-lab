@@ -72,7 +72,6 @@ const TABS = [
 export default function App() {
   const [tab, setTab] = useState<(typeof TABS)[number]['id']>('viz')
   const current = TABS.find((t) => t.id === tab)!
-  const Current = current.comp
 
   return (
     <div className="min-h-screen">
@@ -104,7 +103,12 @@ export default function App() {
       </header>
       <main className="mx-auto max-w-7xl px-4 py-3">
         <ModeGuide key={tab} id={current.id} title={current.guide.title} steps={[...current.guide.steps]} />
-        <Current />
+        {/* 탭을 옮겨도 입력한 계수·점수·진행 상황이 사라지지 않도록 모두 마운트해 두고 숨기기만 한다 */}
+        {TABS.map(({ id, comp: Mode }) => (
+          <div key={id} hidden={id !== tab}>
+            <Mode />
+          </div>
+        ))}
       </main>
     </div>
   )

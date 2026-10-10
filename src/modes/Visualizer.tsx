@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { ArrowDownRight, ArrowUpRight, Minus } from 'lucide-react'
 import GraphCanvas from '../components/GraphCanvas'
 import CoefficientPanel from '../components/CoefficientPanel'
+import PresetPicker from '../components/PresetPicker'
 import SignTable from '../components/SignTable'
 import {
   COLORS,
@@ -34,7 +35,6 @@ const XMAX = 4
 export default function Visualizer() {
   const [coeffs, setCoeffs] = useState<Coeffs>(CUBIC_PRESETS[0].coeffs)
   const [cx, setCx] = useState(0.6)
-  const [presetDesc, setPresetDesc] = useState(CUBIC_PRESETS[0].desc)
   const { w, h } = useWindowSize()
 
   const small = w < 768
@@ -70,7 +70,6 @@ export default function Visualizer() {
   const changeDegree = (d: 3 | 4) => {
     const p = (d === 3 ? CUBIC_PRESETS : QUARTIC_PRESETS)[0]
     setCoeffs(p.coeffs)
-    setPresetDesc(p.desc)
   }
 
   const guides = (ctx: CanvasRenderingContext2D, tf: Tf) => {
@@ -179,21 +178,7 @@ export default function Visualizer() {
           <div className="mb-2 text-xs font-semibold text-slate-500">
             {deg === 3 ? '삼차: 판별식 D = b²−3ac 의 부호' : '사차: f′(x)=0의 실근 구조'}
           </div>
-          <div className="flex flex-wrap gap-2">
-            {presets.map((p) => (
-              <button
-                key={p.label}
-                onClick={() => {
-                  setCoeffs(p.coeffs)
-                  setPresetDesc(p.desc)
-                }}
-                className="min-h-10 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-sm font-semibold text-indigo-700 transition hover:bg-indigo-100"
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
-          <p className="mt-3 text-xs leading-relaxed text-slate-500">{presetDesc}</p>
+          <PresetPicker presets={presets} coeffs={coeffs} onSelect={(p) => setCoeffs(p.coeffs)} />
         </div>
 
         <CoefficientPanel coeffs={coeffs} onChange={setCoeffs} onDegreeChange={changeDegree} />

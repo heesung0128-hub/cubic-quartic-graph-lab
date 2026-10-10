@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { Crosshair, Ruler } from 'lucide-react'
 import GraphCanvas from '../components/GraphCanvas'
 import CoefficientPanel from '../components/CoefficientPanel'
+import PresetPicker from '../components/PresetPicker'
 import {
   COLORS,
   dot,
@@ -64,7 +65,6 @@ function buildRegionMap(f: Coeffs, view: View): HTMLCanvasElement {
 
 export default function Advanced() {
   const [coeffs, setCoeffs] = useState<Coeffs>(RATIO_PRESETS[0].coeffs)
-  const [desc, setDesc] = useState(RATIO_PRESETS[0].desc)
   const [showRatio, setShowRatio] = useState(true)
   const [showTangent, setShowTangent] = useState(true)
   const [P, setP] = useState({ x: 1.5, y: 1.5 })
@@ -244,21 +244,7 @@ export default function Advanced() {
 
         <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <h3 className="mb-2 text-sm font-bold text-slate-700">예시 개형</h3>
-          <div className="flex flex-wrap gap-2">
-            {RATIO_PRESETS.map((p) => (
-              <button
-                key={p.label}
-                onClick={() => {
-                  setCoeffs(p.coeffs)
-                  setDesc(p.desc)
-                }}
-                className="min-h-10 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-sm font-semibold text-indigo-700 hover:bg-indigo-100"
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
-          <p className="mt-3 text-xs leading-relaxed text-slate-500">{desc}</p>
+          <PresetPicker presets={RATIO_PRESETS} coeffs={coeffs} onSelect={(p) => setCoeffs(p.coeffs)} />
         </div>
 
         <div className="space-y-1 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
@@ -302,7 +288,6 @@ export default function Advanced() {
           onDegreeChange={(d) => {
             const p = d === 3 ? RATIO_PRESETS[0] : RATIO_PRESETS[2]
             setCoeffs(p.coeffs)
-            setDesc(p.desc)
           }}
         />
       </aside>
