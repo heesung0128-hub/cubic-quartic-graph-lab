@@ -1,9 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowRight, PartyPopper, Trophy } from 'lucide-react'
+import { ArrowRight, BookOpen, Eye, EyeOff, LineChart, PartyPopper, Trophy } from 'lucide-react'
 import GraphCanvas from '../components/GraphCanvas'
 import { COLORS, dot, drawGrid, hLine, label, plotFn, type View, type Tf } from '../utils/draw'
 import { clamp, useWindowSize } from '../utils/hooks'
-import { evalPoly, fmt, formatPoly, fromRoots, integrate, solveEqualsK, type Coeffs } from '../utils/math'
+import {
+  countRealRoots,
+  evalPoly,
+  extrema,
+  fmt,
+  formatPoly,
+  fromRoots,
+  integrate,
+  solveEqualsK,
+  type Coeffs,
+} from '../utils/math'
 
 interface Level {
   coeffs: Coeffs
@@ -29,19 +39,46 @@ const LEVELS: Level[] = [
   { coeffs: ASYM, target: 4, startK: -5, yMin: -8, yMax: 4, hint: '두 극솟값 중 더 큰 값보다 크고 극댓값보다 작아야 해요.' },
 ]
 
-const CONFETTI = Array.from({ length: 36 }, (_, i) => ({
+interface RangeRow {
+  label: string
+  count: number
+}
+
+/** 극값을 경계로 k의 범위를 나누고, 범위마다 f(x)=k 의 실근 개수를 구한다. */
+function rangeRows(f: Coeffs): RangeRow[] {
+  const vs = [...new Set(extrema(f).map((e) => Math.round(e.y * 1e6) / 1e6))].sort((a, b) => a - b)
+  if (vs.length === 0) return []
+  const rows: RangeRow[] = [{ label: `k < ${fmt(vs[0])}`, count: countRealRoots(f, vs[0] - 1) }]
+  vs.forEach((v, i) => {
+    rows.push({ label: `k = ${fmt(v)}`, count: countRealRoots(f, v) })
+    if (i < vs.length - 1) {
+      rows.push({ label: `${fmt(v)} < k < ${fmt(vs[i + 1])}`, count: countRealRoots(f, (v + vs[i + 1]) / 2) })
+    }
+  })
+  const last = vs[vs.length - 1]
+  rows.push({ label: `k > ${fmt(last)}`, count: countRealRoots(f, last + 1) })
+  return rows
+}
+
+const CONFETTI =Array.from({ length: 36 }, (_, i) => ({
   left: (i * 97) % 100,
   delay: ((i * 53) % 60) / 100,
   color: ['#f43f5e', '#f59e0b', '#22c55e', '#3b82f6', '#a855f7'][i % 5],
   size: 6 + ((i * 7) % 7),
 }))
 
-export default function ParameterGame() {
+interface Props {
+  /** 연동 모드(모드 1)에서 같은 함수를 열어 극값을 살펴본다 */
+  onOpenViz?: (f: Coeffs) => void
+}
+
+export default function ParameterGame({ onOpenViz }: Props) {
   const [idx, setIdx] = useState(0)
   const level = LEVELS[idx]
   const [k, setK] = useState(level.startK)
   const [solved, setSolved] = useState<Set<number>>(new Set())
   const [celebrate, setCelebrate] = useState(false)
+  const [showExt, setShowExt] = useState(false)
   const { h } = useWindowSize()
   const chartH = Math.round(clamp(h * 0.46, 220, 380))
   const timer = useRef<number | undefined>(undefined)
@@ -49,6 +86,10 @@ export default function ParameterGame() {
   const roots = useMemo(() => solveEqualsK(level.coeffs, k), [level, k])
   const count = roots.length
   const success = count === level.target
+  const isSolved = solved.has(idx)
+  const ext = useMemo(() => extrema(level.coeffs), [level])
+  const rows = useMemo(() => rangeRows(level.coeffs), [level])
+  const answers = rows.filter((r) => r.count === level.target)
   const view: View = useMemo(
     () => ({ xmin: -3.5, xmax: 3.5, ymin: level.yMin, ymax: level.yMax }),
     [level],
@@ -69,11 +110,18 @@ export default function ParameterGame() {
     setIdx(i)
     setK(LEVELS[i].startK)
     setCelebrate(false)
+    setShowExt(false)
   }
 
   const draw = (ctx: CanvasRenderingContext2D, tf: Tf) => {
     drawGrid(ctx, tf)
     const color = success ? COLORS.green : COLORS.neg
+    if (showExt || isSolved) {
+      ext.forEach((e) => {
+        hLine(ctx, tf, e.y, '#f59e0b', [6, 5], 1.5)
+        label(ctx, (e.type === 'max' ? '극댓값 ' : '극솟값 ') + fmt(e.y), 8, tf.Y(e.y) - 6, '#b45309', 'left', '700 12px system-ui')
+      })
+    }
     hLine(ctx, tf, k, color, [], 2.5)
     plotFn(ctx, tf, (x) => evalPoly(level.coeffs, x), COLORS.curve, 3)
     roots.forEach((r) => {
@@ -150,7 +198,24 @@ export default function ParameterGame() {
               aria-label="k 직접 입력"
             />
           </div>
-          <p className="mt-2 text-xs text-slate-400">힌트: {level.hint}</p>
+          <p className="mt-2 text-xs text-slate-500">힌트: {level.hint}</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              onClick={() => setShowExt((v) => !v)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-sm font-semibold text-amber-700 hover:bg-amber-100"
+            >
+              {showExt || isSolved ? <EyeOff size={15} /> : <Eye size={15} />}
+              극값 {showExt || isSolved ? '숨기기' : '보기'}
+            </button>
+            {onOpenViz && (
+              <button
+                onClick={() => onOpenViz(level.coeffs)}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-sm font-semibold text-indigo-700 hover:bg-indigo-100"
+              >
+                <LineChart size={15} /> 도함수·증감표로 살펴보기
+              </button>
+            )}
+          </div>
         </div>
       </section>
 
@@ -179,11 +244,35 @@ export default function ParameterGame() {
 
         <button
           onClick={() => go(idx + 1)}
-          disabled={!success || idx === LEVELS.length - 1}
+          disabled={!isSolved || idx === LEVELS.length - 1}
           className="flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 font-bold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300"
         >
           다음 문제 <ArrowRight size={18} />
         </button>
+
+        {isSolved && rows.length > 0 && (
+          <div className="animate-pop-in rounded-xl border border-green-300 bg-green-50 p-4 shadow-sm">
+            <h3 className="mb-1 flex items-center gap-1.5 text-sm font-extrabold text-green-800">
+              <BookOpen size={16} /> 왜 그럴까?
+            </h3>
+            <p className="text-xs leading-relaxed text-slate-700">
+              직선 y = k 가 곡선과 만나는 점의 개수는 k가 <b>극값</b>({ext.map((e) => fmt(e.y)).join(', ')})을 지나갈 때마다 바뀝니다.
+            </p>
+            <table className="mt-2 w-full border-collapse text-sm">
+              <tbody>
+                {rows.map((r, i) => (
+                  <tr key={i} className={r.count === level.target ? 'bg-green-200 font-bold text-green-900' : 'bg-white text-slate-700'}>
+                    <td className="border border-slate-300 px-2 py-1">{r.label}</td>
+                    <td className="border border-slate-300 px-2 py-1 text-center">{r.count}개</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="mt-2 text-sm font-bold text-green-800">
+              ⇒ 실근이 {level.target}개가 되는 k : {answers.map((r) => r.label).join(' 또는 ')}
+            </p>
+          </div>
+        )}
 
         <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <h3 className="mb-2 flex items-center gap-1.5 text-sm font-bold text-slate-700">

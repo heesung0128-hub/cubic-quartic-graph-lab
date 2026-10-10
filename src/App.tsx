@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import type { Coeffs } from './utils/math'
 import { Activity, Gamepad2, LineChart, Target } from 'lucide-react'
 import ModeGuide from './components/ModeGuide'
 import Visualizer from './modes/Visualizer'
@@ -12,7 +13,6 @@ const TABS = [
     label: '도함수-원함수 연동',
     short: '연동',
     icon: Activity,
-    comp: Visualizer,
     guide: {
       title: 'f′(x)의 부호를 보고 f(x)의 모양을 읽어 보세요',
       steps: [
@@ -27,7 +27,6 @@ const TABS = [
     label: '개형·증감표 퀴즈',
     short: '퀴즈',
     icon: Target,
-    comp: QuizHub,
     guide: {
       title: '도함수 그래프만 보고 원함수의 개형을 맞혀 보세요',
       steps: [
@@ -43,7 +42,6 @@ const TABS = [
     label: '실근 개수 게임',
     short: '게임',
     icon: Gamepad2,
-    comp: ParameterGame,
     guide: {
       title: 'f(x) = k 의 서로 다른 실근 개수를 맞춰 보세요',
       steps: [
@@ -58,7 +56,6 @@ const TABS = [
     label: '비율 & 접선 탐색기',
     short: '심화',
     icon: LineChart,
-    comp: Advanced,
     guide: {
       title: '비율 관계와 접선의 개수를 탐색해 보세요',
       steps: [
@@ -72,6 +69,19 @@ const TABS = [
 
 export default function App() {
   const [tab, setTab] = useState<(typeof TABS)[number]['id']>('viz')
+  // 다른 모드에서 "이 함수 살펴보기"를 누르면 연동 모드를 그 함수로 새로 연다
+  const [vizSeed, setVizSeed] = useState<{ coeffs?: Coeffs; nonce: number }>({ nonce: 0 })
+  const openViz = (f: Coeffs) => {
+    setVizSeed((v) => ({ coeffs: f, nonce: v.nonce + 1 }))
+    setTab('viz')
+    window.scrollTo(0, 0)
+  }
+  const screens = {
+    viz: <Visualizer key={vizSeed.nonce} initial={vizSeed.coeffs} />,
+    quiz: <QuizHub onOpenViz={openViz} />,
+    game: <ParameterGame onOpenViz={openViz} />,
+    adv: <Advanced />,
+  }
   const current = TABS.find((t) => t.id === tab)!
 
   return (
@@ -105,9 +115,9 @@ export default function App() {
       <main className="mx-auto max-w-7xl px-4 py-3">
         <ModeGuide key={tab} id={current.id} title={current.guide.title} steps={[...current.guide.steps]} />
         {/* 탭을 옮겨도 입력한 계수·점수·진행 상황이 사라지지 않도록 모두 마운트해 두고 숨기기만 한다 */}
-        {TABS.map(({ id, comp: Mode }) => (
+        {TABS.map(({ id }) => (
           <div key={id} hidden={id !== tab}>
-            <Mode />
+            {screens[id]}
           </div>
         ))}
       </main>

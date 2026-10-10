@@ -32,8 +32,8 @@ import { CUBIC_PRESETS, QUARTIC_PRESETS } from '../utils/presets'
 const XMIN = -4
 const XMAX = 4
 
-export default function Visualizer() {
-  const [coeffs, setCoeffs] = useState<Coeffs>(CUBIC_PRESETS[0].coeffs)
+export default function Visualizer({ initial }: { initial?: Coeffs }) {
+  const [coeffs, setCoeffs] = useState<Coeffs>(initial ?? CUBIC_PRESETS[0].coeffs)
   const [cx, setCx] = useState(0.6)
   const { w, h } = useWindowSize()
 

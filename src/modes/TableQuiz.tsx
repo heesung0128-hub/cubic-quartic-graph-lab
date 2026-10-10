@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { CheckCircle2, Eye, RotateCcw, Send, XCircle } from 'lucide-react'
+import { CheckCircle2, Eye, LineChart, RotateCcw, Send, XCircle } from 'lucide-react'
 import GraphCanvas from '../components/GraphCanvas'
 import { COLORS, drawGrid, fillSign, focusView, plotFn, label, vLine, type Tf } from '../utils/draw'
 import { derivative, evalPoly, fmt, formatPoly, polyAdd, polyMul, polyScale, type Coeffs, type CritType } from '../utils/math'
@@ -65,7 +65,7 @@ const TYPE_CYCLE: ('' | CritType)[] = ['', 'max', 'min', 'flat']
 const TYPE_LABEL: Record<'' | CritType, string> = { '': '선택', max: '극대', min: '극소', flat: '극값 아님' }
 const cycle = (v: number) => (v === 0 ? 1 : v === 1 ? -1 : 0)
 
-export default function TableQuiz() {
+export default function TableQuiz({ onOpenViz }: { onOpenViz?: (f: Coeffs) => void }) {
   const [level, setLevel] = useState<Level>('basic')
   const [f, setF] = useState<Coeffs>(() => makeF('basic'))
   const cells = useMemo(() => signCells(f), [f])
@@ -330,6 +330,14 @@ export default function TableQuiz() {
                   ) : null,
                 )}
             </ul>
+            {onOpenViz && (
+              <button
+                onClick={() => onOpenViz(f)}
+                className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-white px-3 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-50"
+              >
+                <LineChart size={15} /> 연동 모드에서 이 함수 살펴보기
+              </button>
+            )}
           </div>
         )}
       </div>

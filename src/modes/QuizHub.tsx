@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import type { Coeffs } from '../utils/math'
 import Quiz from './Quiz'
 import TableQuiz from './TableQuiz'
 
@@ -8,7 +9,7 @@ const KINDS = [
 ] as const
 
 /** 퀴즈 탭: 문제 유형을 고른다. 두 유형 모두 마운트해 두어 풀던 문제가 유지된다. */
-export default function QuizHub() {
+export default function QuizHub({ onOpenViz }: { onOpenViz?: (f: Coeffs) => void }) {
   const [kind, setKind] = useState<(typeof KINDS)[number]['id']>('shape')
   return (
     <div className="space-y-3">
@@ -26,10 +27,10 @@ export default function QuizHub() {
         ))}
       </div>
       <div hidden={kind !== 'shape'}>
-        <Quiz />
+        <Quiz onOpenViz={onOpenViz} />
       </div>
       <div hidden={kind !== 'table'}>
-        <TableQuiz />
+        <TableQuiz onOpenViz={onOpenViz} />
       </div>
     </div>
   )

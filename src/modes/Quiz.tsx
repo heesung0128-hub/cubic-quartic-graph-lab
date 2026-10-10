@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { CheckCircle2, Lightbulb, RotateCcw, Send, Trash2, XCircle } from 'lucide-react'
+import { CheckCircle2, LineChart, Lightbulb, RotateCcw, Send, Trash2, XCircle } from 'lucide-react'
 import GraphCanvas from '../components/GraphCanvas'
 import SignTable from '../components/SignTable'
 import {
@@ -216,7 +216,7 @@ const HINTS = [
   '점선이 f′(x)=0인 곳이에요. 그중 부호가 바뀌는 곳만 극값이고, + → − 면 극대, − → + 면 극소입니다.',
 ]
 
-export default function Quiz() {
+export default function Quiz({ onOpenViz }: { onOpenViz?: (f: Coeffs) => void }) {
   const [level, setLevel] = useState<Difficulty>('basic')
   const [problem, setProblem] = useState<Problem>(() => makeProblem('basic'))
   const [markers, setMarkers] = useState<Marker[]>([])
@@ -487,6 +487,14 @@ export default function Quiz() {
                 <SignTable f={problem.f} />
               </div>
               <p className="mt-2 font-mono text-xs text-slate-500">f′(x) = {formatPoly(problem.deriv)}</p>
+              {onOpenViz && (
+                <button
+                onClick={() => onOpenViz(problem.f)}
+                className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-white px-3 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-50"
+              >
+                <LineChart size={15} /> 연동 모드에서 이 함수 살펴보기
+              </button>
+              )}
             </div>
           </div>
         )}
