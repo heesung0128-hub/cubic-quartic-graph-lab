@@ -39,8 +39,8 @@ export default function Visualizer({ initial }: { initial?: Coeffs }) {
   const { w, h } = useWindowSize()
 
   const small = w < 768
-  const topH = Math.round(small ? clamp(h * 0.2, 120, 190) : clamp(h * 0.26, 150, 240))
-  const botH = Math.round(small ? clamp(h * 0.27, 150, 240) : clamp(h * 0.34, 190, 320))
+  const topH = Math.round(small ? clamp(h * 0.17, 100, 160) : clamp(h * 0.22, 120, 210))
+  const botH = Math.round(small ? clamp(h * 0.22, 120, 200) : clamp(h * 0.3, 160, 290))
 
   const deg = coeffs.length - 1
   const fp = useMemo(() => derivative(coeffs), [coeffs])
@@ -97,7 +97,6 @@ export default function Visualizer({ initial }: { initial?: Coeffs }) {
     cursorLine(ctx, tf)
     crit.forEach((c) => dot(ctx, tf, c.x, 0, 4.5, c.type === 'flat' ? COLORS.amber : COLORS.guide))
     dot(ctx, tf, trackX, g(trackX), 6, slope > 0 ? COLORS.pos : slope < 0 ? COLORS.neg : COLORS.axis)
-    label(ctx, 'y = f ′(x)', 10, 20, COLORS.axis, 'left', '700 13px system-ui')
   }
 
   const drawBottom = (ctx: CanvasRenderingContext2D, tf: Tf) => {
@@ -130,7 +129,6 @@ export default function Visualizer({ initial }: { initial?: Coeffs }) {
       }
     })
     dot(ctx, tf, trackX, f(trackX), 6.5, slope > 0 ? COLORS.pos : slope < 0 ? COLORS.neg : COLORS.axis)
-    label(ctx, 'y = f(x)', 10, 20, COLORS.axis, 'left', '700 13px system-ui')
   }
 
   const onMove = (p: { x: number }) => setCx(p.x)
@@ -156,16 +154,31 @@ export default function Visualizer({ initial }: { initial?: Coeffs }) {
     <div className="grid gap-3 md:grid-cols-[minmax(320px,380px)_minmax(0,1fr)] md:gap-4">
       {/* 그래프: 화면 위에 고정되어, 아래 조절판을 만지는 동안에도 계속 보인다 */}
       <section className="sticky top-0 z-10 -mx-4 self-start bg-slate-50 px-4 pb-2 md:top-2 md:col-start-2 md:row-start-1 md:mx-0 md:bg-transparent md:px-0 md:pb-0">
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-          <GraphCanvas view={topView} height={topH} draw={drawTop} onPointerMove={onMove} ariaLabel="도함수 그래프" />
-          <div className="h-px bg-slate-200" />
-          <GraphCanvas view={botView} height={botH} draw={drawBottom} onPointerMove={onMove} ariaLabel="원함수 그래프" />
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-0.5 border-t border-slate-200 bg-slate-50 px-3 py-1.5 text-sm tabular-nums text-slate-700">
-            <b>x = {fmt(trackX)}</b>
-            <span>f′ = {fmt(slope)}</span>
-            <span>f = {fmt(f(trackX))}</span>
-            <span className="font-bold">{trend}</span>
-            <span className="ml-auto hidden text-xs text-slate-400 sm:inline">그래프를 만지며 좌우로 움직여 보세요</span>
+        <div className="space-y-2">
+          {/* 위: 도함수 */}
+          <div className="overflow-hidden rounded-xl border-2 border-violet-300 bg-white shadow-sm">
+            <div className="flex items-center gap-2 bg-violet-100 px-3 py-1.5 text-violet-900">
+              <span className="rounded-md bg-violet-600 px-2 py-0.5 text-sm font-extrabold text-white">도함수</span>
+              <Tex className="text-xl">{"y = f'(x)"}</Tex>
+              <span className="ml-auto text-xs font-semibold text-violet-700">기울기를 보여 주는 그래프</span>
+            </div>
+            <GraphCanvas view={topView} height={topH} draw={drawTop} onPointerMove={onMove} ariaLabel="도함수 그래프" />
+          </div>
+          {/* 아래: 원함수 */}
+          <div className="overflow-hidden rounded-xl border-2 border-teal-300 bg-white shadow-sm">
+            <div className="flex items-center gap-2 bg-teal-100 px-3 py-1.5 text-teal-900">
+              <span className="rounded-md bg-teal-600 px-2 py-0.5 text-sm font-extrabold text-white">원함수</span>
+              <Tex className="text-xl">{'y = f(x)'}</Tex>
+              <span className="ml-auto text-xs font-semibold text-teal-700">우리가 알고 싶은 그래프</span>
+            </div>
+            <GraphCanvas view={botView} height={botH} draw={drawBottom} onPointerMove={onMove} ariaLabel="원함수 그래프" />
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-0.5 border-t border-slate-200 bg-slate-50 px-3 py-1.5 text-sm tabular-nums text-slate-700">
+              <b>x = {fmt(trackX)}</b>
+              <span>f′ = {fmt(slope)}</span>
+              <span>f = {fmt(f(trackX))}</span>
+              <span className="font-bold">{trend}</span>
+              <span className="ml-auto hidden text-xs text-slate-400 sm:inline">그래프를 만지며 좌우로 움직여 보세요</span>
+            </div>
           </div>
         </div>
       </section>
