@@ -8,10 +8,67 @@ body {
   margin: 0;
   background: #f8fafc;
   color: #0f172a;
+  -webkit-tap-highlight-color: transparent;
 }
 
+/* ---------- 슬라이더 (터치하기 쉬운 크기) ---------- */
 input[type="range"] {
-  accent-color: #4f46e5;
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  height: 32px;
+  cursor: pointer;
+}
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 999px;
+  background: #cbd5e1;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 24px;
+  height: 24px;
+  margin-top: -9px;
+  border-radius: 50%;
+  background: #4f46e5;
+  border: 3px solid #fff;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.4);
+}
+input[type="range"]::-moz-range-track {
+  height: 6px;
+  border-radius: 999px;
+  background: #cbd5e1;
+}
+input[type="range"]::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #4f46e5;
+  border: 3px solid #fff;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.4);
+}
+
+/* 터치 화면(태블릿·크롬북 터치스크린)에서는 누를 곳을 더 크게 */
+@media (pointer: coarse) {
+  input[type="range"] {
+    height: 44px;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    width: 32px;
+    height: 32px;
+    margin-top: -13px;
+  }
+  input[type="range"]::-moz-range-thumb {
+    width: 26px;
+    height: 26px;
+  }
+  button {
+    min-height: 44px;
+  }
+  input[type="number"] {
+    min-height: 44px;
+    font-size: 16px;
+  }
 }
 
 @keyframes confetti-fall {

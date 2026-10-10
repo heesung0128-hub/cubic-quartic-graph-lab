@@ -21,12 +21,12 @@ import {
   evalPoly,
   extrema,
   fmt,
-  formatPoly,
   inflectionPoints,
   tangentCount,
   tangentPoints,
   type Coeffs,
 } from '../utils/math'
+import { clamp, useWindowSize } from '../utils/hooks'
 import { RATIO_PRESETS } from '../utils/presets'
 
 const XMIN = -4
@@ -69,6 +69,8 @@ export default function Advanced() {
   const [showTangent, setShowTangent] = useState(true)
   const [P, setP] = useState({ x: 1.5, y: 1.5 })
   const [dragging, setDragging] = useState(false)
+  const { w, h } = useWindowSize()
+  const graphH = Math.round(w < 768 ? clamp(h * 0.4, 220, 340) : clamp(h * 0.66, 260, 520))
 
   const deg = coeffs.length - 1
   const view = useMemo(() => polyView(coeffs, XMIN, XMAX, 12, 6), [coeffs])
@@ -131,7 +133,7 @@ export default function Advanced() {
         hLine(ctx, tf, ratio.y2, COLORS.amber, [6, 4], 1.5, ratio.x0, ratio.x3)
         const xs = [ratio.x0, ratio.x1, ratio.m, ratio.x2, ratio.x3]
         xs.forEach((x, i) => vLine(ctx, tf, x, i === 2 ? COLORS.green : COLORS.guide))
-        const names = ['', '극대·극소', '변곡점', '극소·극대', '']
+        const names = ['', '극점', '변곡', '극점', '']
         names.forEach((n, i) => n && label(ctx, n, tf.X(xs[i]), tf.h - 8, COLORS.guide))
         for (let i = 0; i < 4; i++) {
           label(ctx, '1', tf.X((xs[i] + xs[i + 1]) / 2), 18, COLORS.guide, 'center', '800 14px system-ui')
@@ -172,52 +174,32 @@ export default function Advanced() {
       dot(ctx, tf, P.x, P.y, 7, '#4f46e5')
       label(ctx, `P(${fmt(P.x, 1)}, ${fmt(P.y, 1)})`, tf.X(P.x) + 10, tf.Y(P.y) - 12, '#4f46e5', 'left', '700 13px system-ui')
     }
+    if (showTangent) {
+      const txt = '접선 ' + cnt + '개'
+      ctx.save()
+      ctx.font = '800 16px system-ui'
+      const bw = ctx.measureText(txt).width + 20
+      ctx.fillStyle = COUNT_COLORS[Math.min(4, cnt)]
+      ctx.strokeStyle = COUNT_LINE[Math.min(4, cnt)]
+      ctx.lineWidth = 2
+      ctx.beginPath()
+      ctx.roundRect(tf.w - bw - 10, 10, bw, 30, 8)
+      ctx.fill()
+      ctx.stroke()
+      ctx.restore()
+      label(ctx, txt, tf.w - bw / 2 - 10, 31, '#1e293b', 'center', '800 16px system-ui')
+    }
     label(ctx, 'y = f(x)', 10, tf.h - 8, COLORS.axis, 'left', '700 13px system-ui')
   }
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[340px_1fr]">
-      <aside className="space-y-4">
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <h3 className="mb-2 text-sm font-bold text-slate-700">예시 개형</h3>
-          <div className="flex flex-wrap gap-2">
-            {RATIO_PRESETS.map((p) => (
-              <button
-                key={p.label}
-                onClick={() => {
-                  setCoeffs(p.coeffs)
-                  setDesc(p.desc)
-                }}
-                className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100"
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
-          <p className="mt-3 text-xs leading-relaxed text-slate-500">{desc}</p>
-        </div>
-
-        <div className="space-y-2 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <Toggle on={showRatio} onChange={setShowRatio} icon={<Ruler size={15} />} text="비율 관계 Grid 가이드" />
-          <Toggle on={showTangent} onChange={setShowTangent} icon={<Crosshair size={15} />} text="접선 탐색기 (점 P)" />
-        </div>
-
-        <CoefficientPanel
-          coeffs={coeffs}
-          onChange={setCoeffs}
-          onDegreeChange={(d) => {
-            const p = d === 3 ? RATIO_PRESETS[0] : RATIO_PRESETS[2]
-            setCoeffs(p.coeffs)
-            setDesc(p.desc)
-          }}
-        />
-      </aside>
-
-      <section className="space-y-3">
+    <div className="grid gap-3 md:grid-cols-[minmax(320px,380px)_minmax(0,1fr)] md:gap-4">
+      {/* 그래프: 화면에 고정 */}
+      <section className="sticky top-0 z-10 -mx-4 self-start bg-slate-50 px-4 pb-2 md:top-2 md:col-start-2 md:row-start-1 md:mx-0 md:bg-transparent md:px-0 md:pb-0">
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
           <GraphCanvas
             view={view}
-            height={430}
+            height={graphH}
             draw={draw}
             touchAction={showTangent ? 'none' : 'pan-y'}
             cursor={showTangent ? (dragging ? 'grabbing' : 'grab') : 'default'}
@@ -231,36 +213,58 @@ export default function Advanced() {
             onPointerUp={() => setDragging(false)}
           />
         </div>
+      </section>
 
+      <aside className="space-y-3 md:col-start-1 md:row-start-1 md:space-y-4">
         {showTangent && (
-          <div className="grid gap-3 sm:grid-cols-[auto_1fr]">
-            <div
-              className="flex min-w-44 flex-col items-center justify-center rounded-xl border-2 p-4 text-center shadow-sm"
-              style={{ borderColor: COUNT_LINE[Math.min(4, cnt)], background: COUNT_COLORS[Math.min(4, cnt)] }}
-            >
-              <p className="text-xs font-semibold text-slate-600">점 P에서 그을 수 있는 접선</p>
-              <p className="text-5xl font-black tabular-nums text-slate-800">{cnt}개</p>
-              <p className="text-xs text-slate-600">
-                접점 x = {cnt ? touch.map((t) => fmt(t)).join(', ') : '없음'}
-              </p>
-            </div>
-            <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm shadow-sm">
-              <p className="mb-2 font-bold text-slate-700">영역별 접선의 개수</p>
-              <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-slate-600">
-                {COUNT_COLORS.slice(0, deg === 3 ? 4 : 5).map((c, i) => (
-                  <span key={i} className="inline-flex items-center gap-1.5">
-                    <span className="inline-block h-3 w-5 rounded-sm border border-slate-300" style={{ background: c }} />
-                    {i}개
-                  </span>
-                ))}
+          <div
+            className="rounded-xl border-2 p-4 shadow-sm"
+            style={{ borderColor: COUNT_LINE[Math.min(4, cnt)], background: COUNT_COLORS[Math.min(4, cnt)] }}
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold text-slate-600">점 P에서 그을 수 있는 접선</p>
+                <p className="text-xs text-slate-600">접점 x = {cnt ? touch.map((t) => fmt(t)).join(', ') : '없음'}</p>
               </div>
-              <p className="mt-2 text-xs leading-relaxed text-slate-500">
-                점 P(p, q)를 지나는 접선의 접점 t는 방정식 f(t) + f′(t)(p − t) − q = 0 의 서로 다른 실근입니다.
-                그래프 위를 드래그해 P를 옮겨 보세요.
-              </p>
+              <p className="text-4xl font-black tabular-nums text-slate-800">{cnt}개</p>
             </div>
+            <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-700">
+              {COUNT_COLORS.slice(0, deg === 3 ? 4 : 5).map((c, i) => (
+                <span key={i} className="inline-flex items-center gap-1">
+                  <span className="inline-block h-3 w-4 rounded-sm border border-slate-400" style={{ background: c }} />
+                  {i}개
+                </span>
+              ))}
+            </div>
+            <p className="mt-2 text-xs leading-relaxed text-slate-600">
+              그래프를 만지거나 드래그해서 P를 옮겨 보세요. 배경색이 그 위치에서 그을 수 있는 접선의 개수입니다.
+            </p>
           </div>
         )}
+
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <h3 className="mb-2 text-sm font-bold text-slate-700">예시 개형</h3>
+          <div className="flex flex-wrap gap-2">
+            {RATIO_PRESETS.map((p) => (
+              <button
+                key={p.label}
+                onClick={() => {
+                  setCoeffs(p.coeffs)
+                  setDesc(p.desc)
+                }}
+                className="min-h-10 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-sm font-semibold text-indigo-700 hover:bg-indigo-100"
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+          <p className="mt-3 text-xs leading-relaxed text-slate-500">{desc}</p>
+        </div>
+
+        <div className="space-y-1 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+          <Toggle on={showRatio} onChange={setShowRatio} icon={<Ruler size={16} />} text="비율 관계 Grid 가이드" />
+          <Toggle on={showTangent} onChange={setShowTangent} icon={<Crosshair size={16} />} text="접선 탐색기 (점 P)" />
+        </div>
 
         {showRatio && (
           <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm shadow-sm">
@@ -270,27 +274,38 @@ export default function Advanced() {
             {deg === 3 ? (
               ratio && ratio.kind === 'cubic' ? (
                 <p className="leading-relaxed text-slate-600">
-                  극점의 x좌표를 x₁, x₂라 하면 변곡점은 두 극점의 중점입니다. 극점에서 그은 수평선이 곡선과 다시 만나는 점까지의
-                  x좌표를 포함해 <b>x₀ ({fmt(ratio.x0)}), x₁ ({fmt(ratio.x1)}), 변곡점 ({fmt(ratio.m)}), x₂ ({fmt(ratio.x2)}), x₃ ({fmt(ratio.x3)})</b>가
-                  모두 같은 간격(1 : 1 : 1 : 1)으로 놓입니다. 예) f(x)=a(x−α)²(x−β)이면 α, 변곡점, 극점, β가 구간을 1:1:1로 나눕니다.
+                  두 극점과 변곡점, 그리고 극점에서 그은 수평선이 곡선과 다시 만나는 점들이 <b>같은 간격(1 : 1 : 1 : 1)</b>으로 놓입니다.
+                  <br />
+                  <span className="text-xs text-slate-500">
+                    x₀ {fmt(ratio.x0)} · 극점 {fmt(ratio.x1)} · 변곡점 {fmt(ratio.m)} · 극점 {fmt(ratio.x2)} · x₃ {fmt(ratio.x3)}
+                  </span>
                 </p>
               ) : (
                 <p className="text-slate-500">극값이 두 개인 삼차함수(D &gt; 0)에서만 비율 가이드가 나타납니다.</p>
               )
             ) : ratio && ratio.kind === 'quartic' ? (
               <p className="leading-relaxed text-slate-600">
-                f′(x)가 중근을 가지면 x = α({fmt(ratio.alpha)})에서 접선이 수평인 변곡점이 생기고, 곡선이 이 수평선과 다시 만나는 점을 β({fmt(ratio.beta)})라 할 때
-                극값의 위치 x = {fmt(ratio.xe)}는 구간 [α, β]를 <b>3 : 1</b>로 나눕니다. (f(x)=a(x−α)³(x−β) ⇒ f′(x)=a(x−α)²(4x−3β−α))
+                f′(x)가 중근을 가지면 x = {fmt(ratio.alpha)}에서 접선이 수평인 변곡점이 생기고, 극값 x = {fmt(ratio.xe)}가 구간 [{fmt(ratio.alpha)}, {fmt(ratio.beta)}]를{' '}
+                <b>3 : 1</b>로 나눕니다.
               </p>
             ) : (
               <p className="text-slate-500">
-                f′(x)가 중근과 단근을 갖는 사차함수(예: <span className="font-mono">{formatPoly([1, -3, 0, 0, 0])}</span>)에서 3:1 가이드가 나타납니다.
-                위의 &lsquo;사차 3:1&rsquo; 예시를 눌러 보세요.
+                f′(x)가 중근과 단근을 갖는 사차함수에서 나타납니다. 위의 &lsquo;사차 3:1&rsquo; 예시를 눌러 보세요.
               </p>
             )}
           </div>
         )}
-      </section>
+
+        <CoefficientPanel
+          coeffs={coeffs}
+          onChange={setCoeffs}
+          onDegreeChange={(d) => {
+            const p = d === 3 ? RATIO_PRESETS[0] : RATIO_PRESETS[2]
+            setCoeffs(p.coeffs)
+            setDesc(p.desc)
+          }}
+        />
+      </aside>
     </div>
   )
 }
@@ -311,7 +326,7 @@ function Toggle({
       role="switch"
       aria-checked={on}
       onClick={() => onChange(!on)}
-      className="flex w-full items-center justify-between rounded-lg px-1 py-1 text-left text-sm font-semibold text-slate-700"
+      className="flex min-h-11 w-full items-center justify-between rounded-lg px-2 py-1 text-left text-sm font-semibold text-slate-700"
     >
       <span className="inline-flex items-center gap-2">
         {icon} {text}

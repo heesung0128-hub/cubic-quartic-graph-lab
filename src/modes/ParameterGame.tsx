@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowRight, PartyPopper, Trophy } from 'lucide-react'
 import GraphCanvas from '../components/GraphCanvas'
 import { COLORS, dot, drawGrid, hLine, label, plotFn, type View, type Tf } from '../utils/draw'
+import { clamp, useWindowSize } from '../utils/hooks'
 import { evalPoly, fmt, formatPoly, fromRoots, integrate, solveEqualsK, type Coeffs } from '../utils/math'
 
 interface Level {
@@ -41,6 +42,8 @@ export default function ParameterGame() {
   const [k, setK] = useState(level.startK)
   const [solved, setSolved] = useState<Set<number>>(new Set())
   const [celebrate, setCelebrate] = useState(false)
+  const { h } = useWindowSize()
+  const chartH = Math.round(clamp(h * 0.46, 220, 380))
   const timer = useRef<number | undefined>(undefined)
 
   const roots = useMemo(() => solveEqualsK(level.coeffs, k), [level, k])
@@ -89,7 +92,7 @@ export default function ParameterGame() {
   const done = solved.size === LEVELS.length
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
+    <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(280px,320px)] md:gap-4">
       <section className="relative space-y-3">
         <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <p className="text-xs font-bold uppercase tracking-wide text-indigo-600">
@@ -102,7 +105,7 @@ export default function ParameterGame() {
         </div>
 
         <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-          <GraphCanvas view={view} height={340} draw={draw} ariaLabel="f(x)와 직선 y=k" />
+          <GraphCanvas view={view} height={chartH} draw={draw} ariaLabel="f(x)와 직선 y=k" />
           {celebrate && (
             <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
               {CONFETTI.map((c, i) => (
@@ -132,7 +135,7 @@ export default function ParameterGame() {
               step={0.1}
               value={k}
               onChange={(e) => setK(Math.round(parseFloat(e.target.value) * 10) / 10)}
-              className="h-8 min-w-0 flex-1"
+              className="min-w-0 flex-1"
               aria-label="k 값"
             />
             <input
@@ -143,7 +146,7 @@ export default function ParameterGame() {
                 const v = parseFloat(e.target.value)
                 if (Number.isFinite(v)) setK(Math.max(level.yMin, Math.min(level.yMax, v)))
               }}
-              className="w-20 rounded-md border border-slate-300 px-2 py-1 text-right tabular-nums"
+              className="w-24 rounded-md border border-slate-300 px-2 py-1 text-right tabular-nums"
               aria-label="k 직접 입력"
             />
           </div>
@@ -191,7 +194,7 @@ export default function ParameterGame() {
               <button
                 key={i}
                 onClick={() => go(i)}
-                className={`h-8 w-8 rounded-lg text-sm font-bold ${
+                className={`h-11 w-11 rounded-lg text-sm font-bold ${
                   i === idx
                     ? 'bg-indigo-600 text-white'
                     : solved.has(i)

@@ -1,4 +1,4 @@
-import { evalPoly, type Coeffs } from './math'
+import { derivative, evalPoly, realRoots, type Coeffs } from './math'
 
 export interface View {
   xmin: number
@@ -78,6 +78,24 @@ export function autoView(
 
 export function polyView(p: Coeffs, xmin: number, xmax: number, clamp?: number, minSpan?: number): View {
   return autoView((x) => evalPoly(p, x), xmin, xmax, clamp, minSpan)
+}
+
+/**
+ * 극값(= 도함수의 근에서의 값)을 중심으로 y범위를 잡는다.
+ * 곡선의 양 끝이 화면 밖으로 나가더라도, 학생이 봐야 할 극대·극소 부근 모양이 크게 보인다.
+ */
+export function focusView(p: Coeffs, xmin: number, xmax: number): View {
+  const ext = realRoots(derivative(p))
+    .filter((x) => x > xmin - 0.5 && x < xmax + 0.5)
+    .map((x) => evalPoly(p, x))
+  if (ext.length === 0) return polyView(p, xmin, xmax, 8, 4)
+  const ys = [0, ...ext]
+  const lo = Math.min(...ys)
+  const hi = Math.max(...ys)
+  const span = Math.max(hi - lo, 2)
+  const pad = span * 0.6
+  const mid = (hi + lo) / 2
+  return { xmin, xmax, ymin: mid - span / 2 - pad, ymax: mid + span / 2 + pad }
 }
 
 export function drawGrid(ctx: CanvasRenderingContext2D, t: Tf, labels = true) {

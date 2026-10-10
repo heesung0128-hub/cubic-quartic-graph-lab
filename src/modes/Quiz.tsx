@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react'
-import { CheckCircle2, RotateCcw, Send, Trash2, XCircle } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { CheckCircle2, Lightbulb, RotateCcw, Send, Trash2, XCircle } from 'lucide-react'
 import GraphCanvas from '../components/GraphCanvas'
+import SignTable from '../components/SignTable'
 import {
   COLORS,
   dot,
@@ -8,9 +9,10 @@ import {
   fillSign,
   label,
   plotFn,
-  polyView,
+  focusView,
   vLine,
   type Tf,
+  type View,
 } from '../utils/draw'
 import {
   criticalPoints,
@@ -23,11 +25,14 @@ import {
   type Coeffs,
   type CriticalPoint,
 } from '../utils/math'
+import { clamp, useWindowSize } from '../utils/hooks'
 
 const XMIN = -5
 const XMAX = 5
 
 type Tool = 'max' | 'min'
+type Difficulty = 'basic' | 'adv'
+
 interface Marker {
   x: number
   type: Tool
@@ -41,7 +46,7 @@ interface Problem {
   correct: number
 }
 
-const rnd = <T,>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)]
+const rnd = <T,>(arr: readonly T[]): T => arr[Math.floor(Math.random() * arr.length)]
 
 /** 0.5 간격 격자 위에서 서로 1.5 이상 떨어진 근을 뽑는다. */
 function pickRoots(n: number): number[] {
@@ -56,20 +61,27 @@ function pickRoots(n: number): number[] {
   return out.sort((a, b) => a - b)
 }
 
-function randomDeriv(): { deriv: Coeffs } {
+/**
+ * 기본: 극값이 반드시 있는 문제 (삼차 2개 / 사차 1~3개)
+ * 심화: 중근(극값이 아닌 f′=0)이 섞인 문제도 출제
+ */
+function randomDeriv(level: Difficulty): Coeffs {
   const sign = rnd([1, -1])
   const scale = rnd([0.5, 1, 1.5])
-  const kind = rnd(['c2', 'c2', 'c2d', 'q3', 'q3', 'q3', 'q21', 'q1c'] as const)
+  const basic = ['c2', 'c2', 'q3', 'q3', 'q1c'] as const
+  const adv = ['c2', 'q3', 'q1c', 'c2d', 'q21', 'q21'] as const
+  const kind = level === 'basic' ? rnd(basic) : rnd(adv)
   let roots: number[]
   let extra: Coeffs = [1]
   switch (kind) {
     case 'c2': // 삼차함수: 서로 다른 두 근
       roots = pickRoots(2)
       break
-    case 'c2d': // 삼차함수: 중근 (극값 없음)
-      roots = [rnd([-2, -1, 0, 1, 2]), 0]
-      roots[1] = roots[0]
+    case 'c2d': { // 삼차함수: 중근 (극값 없음)
+      const r = rnd([-2, -1, 0, 1, 2])
+      roots = [r, r]
       break
+    }
     case 'q3': // 사차함수: 서로 다른 세 근
       roots = pickRoots(3)
       break
@@ -84,7 +96,7 @@ function randomDeriv(): { deriv: Coeffs } {
   }
   let deriv = fromRoots(sign * scale, roots)
   if (extra.length > 1) deriv = polyMul(deriv, extra)
-  return { deriv }
+  return deriv
 }
 
 function shapeSig(p: Coeffs): number[] {
@@ -105,8 +117,8 @@ function mirrorX(p: Coeffs): Coeffs {
   return p.map((c, i) => ((n - i) % 2 === 1 ? -c : c))
 }
 
-function makeProblem(): Problem {
-  const { deriv } = randomDeriv()
+function makeProblem(level: Difficulty): Problem {
+  const deriv = randomDeriv(level)
   const f = integrate(deriv)
   const crit = criticalPoints(f)
   const options: Coeffs[] = [f]
@@ -115,12 +127,10 @@ function makeProblem(): Problem {
   }
   let guard = 0
   while (options.length < 4 && guard++ < 40) {
-    const alt = integrate(randomDeriv().deriv)
+    const alt = integrate(randomDeriv(level))
     if (alt.length === f.length && distinct(alt, options)) options.push(alt)
   }
-  const shuffled = options
-    .map((o, i) => ({ o, i, r: Math.random() }))
-    .sort((a, b) => a.r - b.r)
+  const shuffled = options.map((o, i) => ({ o, i, r: Math.random() })).sort((a, b) => a.r - b.r)
   return {
     deriv,
     f,
@@ -130,7 +140,17 @@ function makeProblem(): Problem {
   }
 }
 
-const snap = (x: number) => Math.max(-4.5, Math.min(4.5, Math.round(x * 2) / 2))
+const snap = (x: number) => clamp(Math.round(x * 2) / 2, -4.5, 4.5)
+
+/** 선택지 그래프의 y범위: 극값을 기준으로 잡아 곡선 끝이 잘려도 개형이 한눈에 보이게 한다. */
+function shapeView(f: Coeffs): View {
+  const vals = criticalPoints(f).map((c) => c.y)
+  const ends = [evalPoly(f, -4), evalPoly(f, 4)]
+  const span = Math.max(Math.max(...vals, 0) - Math.min(...vals, 0), (Math.max(...ends) - Math.min(...ends)) / 4, 1e-3)
+  const lo = vals.length ? Math.min(...vals) : Math.min(...ends)
+  const hi = vals.length ? Math.max(...vals) : Math.max(...ends)
+  return { xmin: -4.5, xmax: 4.5, ymin: lo - span * 0.7, ymax: hi + span * 0.7 }
+}
 
 interface Result {
   ok: boolean
@@ -168,16 +188,13 @@ function grade(p: Problem, markers: Marker[], choice: number | null): Result {
   }
 
   for (const m of markers) {
-    if (!real.some((c) => Math.abs(c.x - m.x) < 0.26) && !p.crit.some((c) => Math.abs(c.x - m.x) < 0.26)) {
+    if (!p.crit.some((c) => Math.abs(c.x - m.x) < 0.26)) {
       ok = false
-      lines.push({
-        ok: false,
-        text: `x = ${fmt(m.x, 1)}에서는 f′(x) = 0이 아니므로 극값이 될 수 없습니다.`,
-      })
+      lines.push({ ok: false, text: `x = ${fmt(m.x, 1)}에서는 f′(x) = 0이 아니므로 극값이 될 수 없습니다.` })
     }
   }
   if (real.length === 0 && markers.length === 0) {
-    lines.push({ ok: true, text: "f′(x)의 부호가 바뀌는 점이 없으므로 극값이 없고, 함수는 한 방향으로만 증가(또는 감소)합니다." })
+    lines.push({ ok: true, text: 'f′(x)의 부호가 바뀌는 점이 없으므로 극값이 없고, 함수는 한 방향으로만 증가(또는 감소)합니다.' })
   }
 
   const shapeOk = choice === p.correct
@@ -193,33 +210,58 @@ function grade(p: Problem, markers: Marker[], choice: number | null): Result {
   return { ok, lines }
 }
 
+const HINTS = [
+  '',
+  'f′(x)의 그래프가 x축과 만나는 점(f′(x)=0)을 먼저 찾아보세요. 그 점의 앞뒤에서 부호가 바뀌는지가 핵심입니다.',
+  '점선이 f′(x)=0인 곳이에요. 그중 부호가 바뀌는 곳만 극값이고, + → − 면 극대, − → + 면 극소입니다.',
+]
+
 export default function Quiz() {
-  const [problem, setProblem] = useState<Problem>(makeProblem)
+  const [level, setLevel] = useState<Difficulty>('basic')
+  const [problem, setProblem] = useState<Problem>(() => makeProblem('basic'))
   const [markers, setMarkers] = useState<Marker[]>([])
   const [tool, setTool] = useState<Tool>('max')
   const [choice, setChoice] = useState<number | null>(null)
   const [result, setResult] = useState<Result | null>(null)
   const [hover, setHover] = useState<number | null>(null)
+  const [hint, setHint] = useState(0)
   const [score, setScore] = useState({ right: 0, total: 0 })
+  const resultRef = useRef<HTMLDivElement>(null)
+  const { h } = useWindowSize()
 
-  const view = useMemo(() => polyView(problem.deriv, XMIN, XMAX, 25, 6), [problem])
-  const fView = useMemo(() => polyView(problem.f, XMIN, XMAX, 30, 6), [problem])
+  const view = useMemo(() => focusView(problem.deriv, XMIN, XMAX), [problem])
+  const fView = useMemo(() => focusView(problem.f, XMIN, XMAX), [problem])
+  const chartH = Math.round(clamp(h * 0.42, 230, 340))
 
   const g = (x: number) => evalPoly(problem.deriv, x)
 
-  const next = () => {
-    setProblem(makeProblem())
+  useEffect(() => {
+    if (result) resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+  }, [result])
+
+  const next = (lv: Difficulty = level) => {
+    setProblem(makeProblem(lv))
     setMarkers([])
     setChoice(null)
     setResult(null)
+    setHint(0)
   }
 
+  const changeLevel = (lv: Difficulty) => {
+    setLevel(lv)
+    next(lv)
+  }
+
+  /** 빈 곳을 탭하면 마커 추가, 이미 있는 마커를 탭하면 (다른 도구면 종류 변경 / 같은 도구면 삭제) */
   const place = (x: number) => {
     if (result) return
     const sx = snap(x)
-    setMarkers((ms) =>
-      ms.some((m) => m.x === sx) ? ms.filter((m) => m.x !== sx) : [...ms, { x: sx, type: tool }],
-    )
+    setMarkers((ms) => {
+      const ex = ms.find((m) => m.x === sx)
+      if (!ex) return [...ms, { x: sx, type: tool }]
+      if (ex.type !== tool) return ms.map((m) => (m.x === sx ? { ...m, type: tool } : m))
+      return ms.filter((m) => m.x !== sx)
+    })
   }
 
   const submit = () => {
@@ -232,9 +274,35 @@ export default function Quiz() {
     drawGrid(ctx, tf)
     fillSign(ctx, tf, g)
     plotFn(ctx, tf, g, COLORS.curve, 2.5)
-    if (hover !== null && !result) vLine(ctx, tf, hover, '#94a3b8', [3, 3], 1.2)
+
+    // 마커를 놓을 수 있는 0.5 단위 눈금
+    ctx.save()
+    ctx.strokeStyle = '#94a3b8'
+    ctx.lineWidth = 1
+    for (let x = -4.5; x <= 4.5; x += 0.5) {
+      const px = tf.X(x)
+      const len = Number.isInteger(x) ? 6 : 3.5
+      ctx.beginPath()
+      ctx.moveTo(px, tf.Y(0) - len)
+      ctx.lineTo(px, tf.Y(0) + len)
+      ctx.stroke()
+    }
+    ctx.restore()
+
+    if (hover !== null && !result) vLine(ctx, tf, hover, '#64748b', [3, 3], 1.2)
+    if (hint >= 2 && !result) {
+      problem.crit.forEach((c) => vLine(ctx, tf, c.x, '#a5b4fc', [6, 5], 1.5))
+    }
     if (result) {
       problem.crit.forEach((c) => vLine(ctx, tf, c.x, c.type === 'flat' ? COLORS.amber : COLORS.guide))
+      // 정답 공개 후에는 부호 기호도 보여 준다
+      const xs = [XMIN, ...problem.crit.map((c) => c.x), XMAX]
+      for (let i = 0; i + 1 < xs.length; i++) {
+        if (xs[i + 1] - xs[i] < 0.5) continue
+        const mid = (xs[i] + xs[i + 1]) / 2
+        const s = Math.sign(g(mid))
+        label(ctx, s > 0 ? '+' : '−', tf.X(mid), tf.Y(0) + (s > 0 ? -12 : 26), s > 0 ? COLORS.pos : COLORS.neg, 'center', '800 22px system-ui')
+      }
     }
     markers.forEach((m) => {
       const px = tf.X(m.x)
@@ -245,21 +313,21 @@ export default function Quiz() {
       ctx.lineWidth = 2
       ctx.beginPath()
       if (m.type === 'max') {
-        ctx.moveTo(px, py - 16)
-        ctx.lineTo(px - 9, py - 1)
-        ctx.lineTo(px + 9, py - 1)
+        ctx.moveTo(px, py - 22)
+        ctx.lineTo(px - 12, py - 2)
+        ctx.lineTo(px + 12, py - 2)
       } else {
-        ctx.moveTo(px, py + 16)
-        ctx.lineTo(px - 9, py + 1)
-        ctx.lineTo(px + 9, py + 1)
+        ctx.moveTo(px, py + 22)
+        ctx.lineTo(px - 12, py + 2)
+        ctx.lineTo(px + 12, py + 2)
       }
       ctx.closePath()
       ctx.fill()
       ctx.stroke()
       ctx.restore()
-      label(ctx, m.type === 'max' ? '극대' : '극소', px, m.type === 'max' ? py - 21 : py + 31, m.type === 'max' ? COLORS.neg : COLORS.pos)
+      label(ctx, m.type === 'max' ? '극대' : '극소', px, m.type === 'max' ? py - 28 : py + 38, m.type === 'max' ? COLORS.neg : COLORS.pos, 'center', '700 13px system-ui')
     })
-    label(ctx, "y = f ′(x)", 10, 20, COLORS.axis, 'left', '700 13px system-ui')
+    label(ctx, 'y = f ′(x)', 10, 20, COLORS.axis, 'left', '700 13px system-ui')
   }
 
   const drawAnswer = (ctx: CanvasRenderingContext2D, tf: Tf) => {
@@ -268,25 +336,39 @@ export default function Quiz() {
     plotFn(ctx, tf, (x) => evalPoly(problem.f, x), COLORS.curve, 3)
     problem.crit.forEach((c) => {
       dot(ctx, tf, c.x, c.y, 6, c.type === 'max' ? COLORS.neg : c.type === 'min' ? COLORS.pos : COLORS.amber)
-      if (c.type !== 'flat') label(ctx, c.type === 'max' ? '극대' : '극소', tf.X(c.x), tf.Y(c.y) + (c.type === 'max' ? -12 : 20), COLORS.axis)
+      if (c.type !== 'flat') label(ctx, c.type === 'max' ? '극대' : '극소', tf.X(c.x), tf.Y(c.y) + (c.type === 'max' ? -12 : 22), COLORS.axis)
     })
     label(ctx, '정답: y = f(x)', 10, 20, COLORS.axis, 'left', '700 13px system-ui')
   }
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[1fr_380px]">
+    <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(320px,380px)] md:gap-4">
       <section className="space-y-3">
         <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
             <p className="text-sm text-slate-700">
-              <b>문제.</b> 아래는 도함수 <i>y = f ′(x)</i> 의 그래프입니다. 극값의 위치에 마커를 놓고 <i>f(x)</i>의 개형을 고르세요.
+              <b>문제.</b> <i>y = f ′(x)</i> 의 그래프입니다. 극값의 위치를 표시하고 <i>f(x)</i>의 개형을 고르세요.
             </p>
-            <span className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-bold text-indigo-700">
-              {score.right} / {score.total} 정답
-            </span>
+            <div className="flex items-center gap-2">
+              <div className="inline-flex overflow-hidden rounded-lg border border-slate-300 text-xs font-bold">
+                {(['basic', 'adv'] as const).map((lv) => (
+                  <button
+                    key={lv}
+                    onClick={() => changeLevel(lv)}
+                    className={`px-3 py-1.5 ${level === lv ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
+                  >
+                    {lv === 'basic' ? '기본' : '심화'}
+                  </button>
+                ))}
+              </div>
+              <span className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-bold text-indigo-700">
+                {score.right} / {score.total}
+              </span>
+            </div>
           </div>
+
           <div className="mb-2 flex flex-wrap items-center gap-2">
-            <span className="text-xs font-semibold text-slate-500">마커 도구</span>
+            <span className="text-xs font-semibold text-slate-500">표시할 것</span>
             <ToolBtn active={tool === 'max'} onClick={() => setTool('max')} color="red">
               ▲ 극대
             </ToolBtn>
@@ -294,32 +376,44 @@ export default function Quiz() {
               ▼ 극소
             </ToolBtn>
             <button
+              onClick={() => setHint((n) => Math.min(2, n + 1))}
+              disabled={!!result || hint >= 2}
+              className="ml-auto inline-flex items-center gap-1 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-sm font-semibold text-amber-700 hover:bg-amber-100 disabled:opacity-40"
+            >
+              <Lightbulb size={15} /> 힌트 {hint}/2
+            </button>
+            <button
               onClick={() => setMarkers([])}
               disabled={!!result}
-              className="ml-auto inline-flex items-center gap-1 rounded-lg border border-slate-300 px-2.5 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-40"
+              className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-40"
             >
-              <Trash2 size={13} /> 마커 지우기
+              <Trash2 size={15} /> 지우기
             </button>
           </div>
+
           <div className="overflow-hidden rounded-lg border border-slate-200">
             <GraphCanvas
               view={view}
-              height={300}
+              height={chartH}
               draw={draw}
+              touchAction="none"
               onPointerMove={(p) => setHover(snap(p.x))}
               onPointerLeave={() => setHover(null)}
               onPointerDown={(p) => place(p.x)}
-              ariaLabel="도함수 그래프 (클릭하여 마커 배치)"
+              ariaLabel="도함수 그래프 (탭하여 극값 표시)"
             />
           </div>
-          <p className="mt-2 text-xs text-slate-400">
-            그래프를 클릭하면 가장 가까운 0.5 단위 x좌표에 마커가 놓입니다. 같은 자리를 다시 클릭하면 삭제됩니다.
+          <p className="mt-2 text-xs text-slate-500">
+            x축 눈금(0.5 간격) 중 가까운 곳을 탭하면 위에서 고른 마커가 놓여요. 놓인 마커를 다른 종류로 탭하면 바뀌고, 같은 종류로 다시 탭하면 지워집니다.
           </p>
+          {hint > 0 && !result && (
+            <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">💡 {HINTS[hint]}</p>
+          )}
         </div>
 
         {result && (
           <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-            <GraphCanvas view={fView} height={240} draw={drawAnswer} ariaLabel="정답 원함수 그래프" />
+            <GraphCanvas view={fView} height={Math.round(chartH * 0.8)} draw={drawAnswer} ariaLabel="정답 원함수 그래프" />
           </div>
         )}
       </section>
@@ -337,7 +431,7 @@ export default function Quiz() {
                   key={i}
                   disabled={!!result}
                   onClick={() => setChoice(i)}
-                  className={`rounded-lg border-2 p-1 transition ${
+                  className={`rounded-lg border-2 p-1.5 transition ${
                     showRight
                       ? 'border-green-500 bg-green-50'
                       : showWrong
@@ -347,9 +441,7 @@ export default function Quiz() {
                           : 'border-slate-200 hover:border-slate-300'
                   }`}
                 >
-                  <span className="block text-left text-xs font-bold text-slate-500">
-                    {['①', '②', '③', '④'][i]}
-                  </span>
+                  <span className="block text-left text-sm font-bold text-slate-600">{['①', '②', '③', '④'][i]}</span>
                   <MiniShape coeffs={o} />
                 </button>
               )
@@ -359,21 +451,22 @@ export default function Quiz() {
             <button
               onClick={submit}
               disabled={!!result}
-              className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-bold text-white hover:bg-indigo-700 disabled:opacity-40"
+              className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2.5 text-base font-bold text-white hover:bg-indigo-700 disabled:opacity-40"
             >
-              <Send size={15} /> 제출하고 채점
+              <Send size={16} /> 제출하고 채점
             </button>
             <button
-              onClick={next}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+              onClick={() => next()}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
             >
-              <RotateCcw size={15} /> {result ? '다음 문제' : '다른 문제'}
+              <RotateCcw size={16} /> {result ? '다음 문제' : '다른 문제'}
             </button>
           </div>
         </div>
 
         {result && (
           <div
+            ref={resultRef}
             className={`animate-pop-in rounded-xl border p-4 shadow-sm ${result.ok ? 'border-green-300 bg-green-50' : 'border-red-300 bg-red-50'}`}
           >
             <p className={`mb-2 flex items-center gap-1.5 text-base font-extrabold ${result.ok ? 'text-green-700' : 'text-red-700'}`}>
@@ -388,9 +481,13 @@ export default function Quiz() {
                 </li>
               ))}
             </ul>
-            <p className="mt-3 border-t border-slate-200 pt-2 font-mono text-xs text-slate-500">
-              f′(x) = {formatPoly(problem.deriv)}
-            </p>
+            <div className="mt-3 border-t border-slate-200 pt-3">
+              <p className="mb-1.5 text-xs font-bold text-slate-600">증감표</p>
+              <div className="rounded-lg bg-white">
+                <SignTable f={problem.f} />
+              </div>
+              <p className="mt-2 font-mono text-xs text-slate-500">f′(x) = {formatPoly(problem.deriv)}</p>
+            </div>
           </div>
         )}
       </aside>
@@ -413,7 +510,7 @@ function ToolBtn({
   return (
     <button
       onClick={onClick}
-      className={`rounded-lg border-2 px-3 py-1 text-xs font-bold ${active ? on : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}
+      className={`rounded-lg border-2 px-4 py-1.5 text-sm font-bold ${active ? on : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}
     >
       {children}
     </button>
@@ -422,11 +519,11 @@ function ToolBtn({
 
 /** 선택지용 작은 그래프 */
 function MiniShape({ coeffs }: { coeffs: Coeffs }) {
-  const view = useMemo(() => polyView(coeffs, XMIN, XMAX, 30, 1), [coeffs])
+  const view = useMemo(() => shapeView(coeffs), [coeffs])
   return (
     <GraphCanvas
       view={view}
-      height={96}
+      height={104}
       touchAction="pan-y"
       cursor="pointer"
       draw={(ctx, tf) => {
