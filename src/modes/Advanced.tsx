@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Crosshair, Ruler } from 'lucide-react'
 import GraphCanvas from '../components/GraphCanvas'
 import CoefficientPanel from '../components/CoefficientPanel'
@@ -73,6 +73,7 @@ export default function Advanced() {
   const graphH = Math.round(w < 768 ? clamp(h * 0.4, 220, 340) : clamp(h * 0.66, 260, 520))
 
   const deg = coeffs.length - 1
+  const savedByDeg = useRef<Record<number, Coeffs>>({})
   const view = useMemo(() => polyView(coeffs, XMIN, XMAX, 12, 6), [coeffs])
   const region = useMemo(
     () => (showTangent ? buildRegionMap(coeffs, view) : null),
@@ -286,8 +287,9 @@ export default function Advanced() {
           coeffs={coeffs}
           onChange={setCoeffs}
           onDegreeChange={(d) => {
-            const p = d === 3 ? RATIO_PRESETS[0] : RATIO_PRESETS[2]
-            setCoeffs(p.coeffs)
+            if (d === deg) return
+            savedByDeg.current[deg] = coeffs
+            setCoeffs(savedByDeg.current[d] ?? (d === 3 ? RATIO_PRESETS[0] : RATIO_PRESETS[2]).coeffs)
           }}
         />
       </aside>

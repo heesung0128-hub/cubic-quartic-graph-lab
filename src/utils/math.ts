@@ -238,3 +238,19 @@ export function fmt(v: number, digits = 2): string {
   const r = Number(v.toFixed(digits))
   return Object.is(r, -0) ? '0' : String(r)
 }
+
+/** 다항식을 LaTeX 문자열로 (KaTeX 표기용) */
+export function formatPolyTex(p: Coeffs, name = 'x'): string {
+  const n = p.length - 1
+  const parts: string[] = []
+  p.forEach((c, i) => {
+    if (Math.abs(c) < 0.005) return
+    const e = n - i
+    const abs = Math.abs(c)
+    const coef = e > 0 && Math.abs(abs - 1) < 0.005 ? '' : num(abs)
+    const term = e === 0 ? num(abs) : e === 1 ? `${coef}${name}` : `${coef}${name}^{${e}}`
+    if (parts.length === 0) parts.push(c < 0 ? `-${term}` : term)
+    else parts.push(` ${c < 0 ? '-' : '+'} ${term}`)
+  })
+  return parts.length ? parts.join('') : '0'
+}

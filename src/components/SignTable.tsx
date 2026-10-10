@@ -1,5 +1,6 @@
 import { fmt, type Coeffs } from '../utils/math'
 import { signCells } from '../utils/signCells'
+import Tex from './Tex'
 
 interface Props {
   f: Coeffs
@@ -30,7 +31,9 @@ export default function SignTable({ f, highlightX }: Props) {
       <table className="w-full border-collapse text-slate-800">
         <tbody>
           <tr>
-            <th className={`${cellBase} bg-slate-50 font-bold`}>x</th>
+            <th className={`${cellBase} bg-slate-50 font-bold`}>
+              <Tex>x</Tex>
+            </th>
             {cells.map((c, i) => (
               <td key={i} className={`${cellBase} ${bg(i)} ${c.kind === 'point' ? 'font-bold' : 'text-slate-400'}`}>
                 {c.kind === 'point' ? fmt(c.x) : '⋯'}
@@ -38,7 +41,9 @@ export default function SignTable({ f, highlightX }: Props) {
             ))}
           </tr>
           <tr>
-            <th className={`${cellBase} bg-slate-50 font-bold`}>f′(x)</th>
+            <th className={`${cellBase} bg-slate-50 font-bold`}>
+              <Tex>{"f'(x)"}</Tex>
+            </th>
             {cells.map((c, i) => (
               <td
                 key={i}
@@ -51,7 +56,9 @@ export default function SignTable({ f, highlightX }: Props) {
             ))}
           </tr>
           <tr>
-            <th className={`${cellBase} bg-slate-50 font-bold`}>f(x)</th>
+            <th className={`${cellBase} bg-slate-50 font-bold`}>
+              <Tex>{"f(x)"}</Tex>
+            </th>
             {cells.map((c, i) => (
               <td key={i} className={`${cellBase} ${bg(i)} text-xs`}>
                 {c.kind === 'interval' ? (

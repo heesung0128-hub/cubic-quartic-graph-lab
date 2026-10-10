@@ -1,10 +1,12 @@
 import { useMemo, useState } from 'react'
 import { CheckCircle2, Eye, LineChart, RotateCcw, Send, XCircle } from 'lucide-react'
 import GraphCanvas from '../components/GraphCanvas'
+import Tex from '../components/Tex'
 import { COLORS, drawGrid, fillSign, focusView, plotFn, label, vLine, type Tf } from '../utils/draw'
-import { derivative, evalPoly, fmt, formatPoly, polyAdd, polyMul, polyScale, type Coeffs, type CritType } from '../utils/math'
+import { derivative, evalPoly, fmt, formatPolyTex, polyAdd, polyMul, polyScale, type Coeffs, type CritType } from '../utils/math'
 import { signCells, type SignCell } from '../utils/signCells'
 import { clamp, useWindowSize } from '../utils/hooks'
+import { recordQuiz, useProgress } from '../utils/progress'
 
 type Level = 'basic' | 'adv'
 
@@ -72,7 +74,7 @@ export default function TableQuiz({ onOpenViz }: { onOpenViz?: (f: Coeffs) => vo
   const [entries, setEntries] = useState<Entry[]>(() => blank(signCells(f)))
   const [submitted, setSubmitted] = useState(false)
   const [showDeriv, setShowDeriv] = useState(false)
-  const [score, setScore] = useState({ right: 0, total: 0 })
+  const score = useProgress().kinds.table
   const { h } = useWindowSize()
 
   const fp = useMemo(() => derivative(f), [f])
@@ -110,9 +112,23 @@ export default function TableQuiz({ onOpenViz }: { onOpenViz?: (f: Coeffs) => vo
   const allOk = verdict.every((v) => Object.values(v).every(Boolean))
   const complete = entries.every((e) => (e.kind === 'interval' ? e.sign !== 0 && e.arrow !== 0 : e.type !== '' && e.value.trim() !== ''))
 
+  /** 약점 분석용: 칸 종류별 맞음/틀림 */
+  const skillResults = () => {
+    const out: { id: string; ok: boolean }[] = []
+    cells.forEach((c, i) => {
+      const v = verdict[i] as { signOk?: boolean; arrowOk?: boolean; typeOk?: boolean; valueOk?: boolean }
+      if (c.kind === 'interval') {
+        out.push({ id: 'sign', ok: !!v.signOk }, { id: 'arrow', ok: !!v.arrowOk })
+      } else {
+        out.push({ id: c.type === 'flat' ? 'flat' : 'kind', ok: !!v.typeOk }, { id: 'value', ok: !!v.valueOk })
+      }
+    })
+    return out
+  }
+
   const submit = () => {
     setSubmitted(true)
-    setScore((s) => ({ right: s.right + (allOk ? 1 : 0), total: s.total + 1 }))
+    recordQuiz('table', allOk, skillResults())
   }
 
   const draw = (ctx: CanvasRenderingContext2D, tf: Tf) => {
@@ -154,7 +170,9 @@ export default function TableQuiz({ onOpenViz }: { onOpenViz?: (f: Coeffs) => vo
               </span>
             </div>
           </div>
-          <p className="rounded-lg bg-slate-50 px-3 py-3 text-center font-mono text-lg font-bold text-slate-800">f(x) = {formatPoly(f)}</p>
+          <p className="overflow-x-auto rounded-lg bg-slate-50 px-3 py-3 text-center text-xl text-slate-800">
+            <Tex>{`f(x) = ${formatPolyTex(f)}`}</Tex>
+          </p>
           <div className="mt-3 flex items-center gap-2">
             <button
               onClick={() => setShowDeriv((v) => !v)}
@@ -162,7 +180,9 @@ export default function TableQuiz({ onOpenViz }: { onOpenViz?: (f: Coeffs) => vo
             >
               <Eye size={15} /> 도함수 {showDeriv ? '숨기기' : '보기'}
             </button>
-            {showDeriv && <span className="font-mono text-sm text-slate-700">f′(x) = {formatPoly(fp)}</span>}
+            {showDeriv && <span className="text-base text-slate-700">
+                <Tex>{`f'(x) = ${formatPolyTex(fp)}`}</Tex>
+              </span>}
           </div>
           <p className="mt-3 text-xs text-slate-500">
             오른쪽 그래프는 f′(x)입니다. f′(x)=0인 x가 표의 가운데 열이고, 파란 부분은 f′&gt;0, 빨간 부분은 f′&lt;0 입니다.
@@ -183,7 +203,9 @@ export default function TableQuiz({ onOpenViz }: { onOpenViz?: (f: Coeffs) => vo
           <table className="w-full min-w-[420px] border-collapse">
             <tbody>
               <tr>
-                <th className={sideTh}>x</th>
+                <th className={sideTh}>
+                  <Tex>x</Tex>
+                </th>
                 {cells.map((c, i) => (
                   <td key={i} className={`${cell} px-2 py-2 text-base font-bold ${c.kind === 'interval' ? 'text-slate-400' : 'text-slate-800'}`}>
                     {c.kind === 'point' ? fmt(c.x) : '⋯'}
@@ -191,7 +213,9 @@ export default function TableQuiz({ onOpenViz }: { onOpenViz?: (f: Coeffs) => vo
                 ))}
               </tr>
               <tr>
-                <th className={sideTh}>f′(x)</th>
+                <th className={sideTh}>
+                  <Tex>{"f'(x)"}</Tex>
+                </th>
                 {cells.map((c, i) => {
                   const e = entries[i]
                   if (c.kind === 'point' || e.kind !== 'interval') {
@@ -221,7 +245,9 @@ export default function TableQuiz({ onOpenViz }: { onOpenViz?: (f: Coeffs) => vo
                 })}
               </tr>
               <tr>
-                <th className={sideTh}>f(x)</th>
+                <th className={sideTh}>
+                  <Tex>{"f(x)"}</Tex>
+                </th>
                 {cells.map((c, i) => {
                   const e = entries[i]
                   if (c.kind === 'interval' && e.kind === 'interval') {

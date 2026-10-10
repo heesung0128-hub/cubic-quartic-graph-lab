@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { ArrowDownRight, ArrowUpRight, Minus } from 'lucide-react'
 import GraphCanvas from '../components/GraphCanvas'
 import CoefficientPanel from '../components/CoefficientPanel'
 import PresetPicker from '../components/PresetPicker'
 import SignTable from '../components/SignTable'
+import Tex from '../components/Tex'
 import {
   COLORS,
   dot,
@@ -22,7 +23,7 @@ import {
   derivative,
   evalPoly,
   fmt,
-  formatPoly,
+  formatPolyTex,
   inflectionPoints,
   type Coeffs,
 } from '../utils/math'
@@ -67,9 +68,12 @@ export default function Visualizer({ initial }: { initial?: Coeffs }) {
     return out
   }, [crit, fp])
 
+  // 3차↔4차를 오가도 각자 마지막으로 만지던 계수를 기억해 되돌려 준다
+  const savedByDeg = useRef<Record<number, Coeffs>>({})
   const changeDegree = (d: 3 | 4) => {
-    const p = (d === 3 ? CUBIC_PRESETS : QUARTIC_PRESETS)[0]
-    setCoeffs(p.coeffs)
+    if (d === deg) return
+    savedByDeg.current[deg] = coeffs
+    setCoeffs(savedByDeg.current[d] ?? (d === 3 ? CUBIC_PRESETS : QUARTIC_PRESETS)[0].coeffs)
   }
 
   const guides = (ctx: CanvasRenderingContext2D, tf: Tf) => {
@@ -184,7 +188,7 @@ export default function Visualizer({ initial }: { initial?: Coeffs }) {
         <CoefficientPanel coeffs={coeffs} onChange={setCoeffs} onDegreeChange={changeDegree} />
 
         <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm shadow-sm">
-          <p className="mb-1 font-bold text-slate-700">f′(x) = {formatPoly(fp)}</p>
+          <p className="mb-1 overflow-x-auto font-bold text-slate-700"><Tex>{`f'(x) = ${formatPolyTex(fp)}`}</Tex></p>
           {deg === 3 && (
             <p className="text-slate-600">
               D/4 = b²−3ac = <b className="tabular-nums">{fmt(dq)}</b> {dq > 1e-9 ? '(> 0)' : Math.abs(dq) <= 1e-9 ? '(= 0)' : '(< 0)'}

@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import type { Coeffs } from './utils/math'
-import { Activity, Gamepad2, LineChart, Target } from 'lucide-react'
+import { Activity, BarChart3, Gamepad2, LineChart, Target } from 'lucide-react'
 import ModeGuide from './components/ModeGuide'
 import Visualizer from './modes/Visualizer'
 import QuizHub from './modes/QuizHub'
-import ParameterGame from './modes/ParameterGame'
+import ParameterGame, { LEVEL_COUNT } from './modes/ParameterGame'
+import MyRecord from './modes/MyRecord'
 import Advanced from './modes/Advanced'
 
 const TABS = [
@@ -65,6 +66,19 @@ const TABS = [
       ],
     },
   },
+  {
+    id: 'me',
+    label: '내 기록',
+    short: '기록',
+    icon: BarChart3,
+    guide: {
+      title: '내가 얼마나 풀었고 어디가 약한지 확인해 보세요',
+      steps: [
+        '퀴즈와 게임 결과가 자동으로 기록돼요. 새로고침해도 사라지지 않아요.',
+        '항목마다 4번 이상 풀면 약한 부분을 찾아 연습할 곳을 안내해 드려요.',
+      ],
+    },
+  },
 ] as const
 
 export default function App() {
@@ -81,32 +95,33 @@ export default function App() {
     quiz: <QuizHub onOpenViz={openViz} />,
     game: <ParameterGame onOpenViz={openViz} />,
     adv: <Advanced />,
+    me: <MyRecord onGo={setTab} gameTotal={LEVEL_COUNT} />,
   }
   const current = TABS.find((t) => t.id === tab)!
 
   return (
     <div className="min-h-screen">
       <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-7xl flex-col gap-2 px-4 py-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mx-auto flex max-w-7xl flex-col gap-2 px-4 py-2 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h1 className="text-lg font-extrabold text-slate-800 sm:text-xl">
               삼차·사차함수 <span className="text-indigo-600">그래프 개형 연습실</span>
             </h1>
             <p className="hidden text-xs text-slate-500 sm:block">고등학교 미적분 · 도함수로 읽는 극값, 실근, 접선</p>
           </div>
-          <nav className="grid grid-cols-4 gap-1 rounded-xl bg-slate-100 p-1 sm:flex" aria-label="학습 모드">
+          <nav className="grid grid-cols-5 gap-1 rounded-xl bg-slate-100 p-1 lg:flex" aria-label="학습 모드">
             {TABS.map(({ id, label, short, icon: Icon }) => (
               <button
                 key={id}
                 onClick={() => setTab(id)}
                 aria-current={tab === id}
-                className={`flex min-h-11 flex-col items-center justify-center gap-0.5 rounded-lg px-2 py-1 text-xs font-bold transition sm:flex-row sm:gap-1.5 sm:px-4 sm:text-sm ${
+                className={`flex min-h-11 flex-col items-center justify-center gap-0.5 rounded-lg px-2 py-1 text-xs font-bold transition lg:flex-row lg:gap-1.5 lg:px-3 lg:text-sm ${
                   tab === id ? 'bg-white text-indigo-700 shadow' : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
                 <Icon size={18} />
-                <span className="sm:hidden">{short}</span>
-                <span className="hidden sm:inline">{label}</span>
+                <span className="lg:hidden">{short}</span>
+                <span className="hidden lg:inline">{label}</span>
               </button>
             ))}
           </nav>

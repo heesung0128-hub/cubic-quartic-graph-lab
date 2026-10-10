@@ -1,5 +1,6 @@
 import type { Coeffs } from '../utils/math'
-import { formatPoly } from '../utils/math'
+import { formatPolyTex } from '../utils/math'
+import Tex from './Tex'
 
 interface Props {
   coeffs: Coeffs
@@ -47,8 +48,8 @@ export default function CoefficientPanel({ coeffs, onChange, onDegreeChange }: P
           </div>
         )}
       </div>
-      <p className="mb-3 rounded-lg bg-slate-50 px-3 py-2 font-mono text-sm text-slate-800">
-        f(x) = {formatPoly(coeffs)}
+      <p className="mb-3 overflow-x-auto rounded-lg bg-slate-50 px-3 py-2 text-slate-800">
+        <Tex>{`f(x) = ${formatPolyTex(coeffs)}`}</Tex>
       </p>
       <div className="space-y-2.5">
         {coeffs.map((c, i) => {
@@ -56,9 +57,8 @@ export default function CoefficientPanel({ coeffs, onChange, onDegreeChange }: P
           const power = deg - i
           return (
             <div key={i} className="flex items-center gap-2">
-              <label className="w-12 shrink-0 text-xs font-semibold text-slate-600">
-                {NAMES[i]}
-                <span className="font-normal text-slate-400">{power > 0 ? ` x${power > 1 ? `^${power}` : ''}` : ''}</span>
+              <label className="w-14 shrink-0 text-sm text-slate-700">
+                <Tex>{`${NAMES[i]}${power > 1 ? `x^{${power}}` : power === 1 ? "x" : ""}`}</Tex>
               </label>
               <input
                 type="range"

@@ -1,14 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowRight, BookOpen, Eye, EyeOff, LineChart, PartyPopper, Trophy } from 'lucide-react'
 import GraphCanvas from '../components/GraphCanvas'
+import Tex from '../components/Tex'
 import { COLORS, dot, drawGrid, hLine, label, plotFn, type View, type Tf } from '../utils/draw'
 import { clamp, useWindowSize } from '../utils/hooks'
+import { markSolved, useProgress } from '../utils/progress'
 import {
   countRealRoots,
   evalPoly,
   extrema,
   fmt,
-  formatPoly,
+  formatPolyTex,
   fromRoots,
   integrate,
   solveEqualsK,
@@ -38,6 +40,8 @@ const LEVELS: Level[] = [
   { coeffs: X4, target: 0, startK: 0, yMin: -3, yMax: 3, hint: '곡선의 최솟값보다 아래에 직선을 놓으세요.' },
   { coeffs: ASYM, target: 4, startK: -5, yMin: -8, yMax: 4, hint: '두 극솟값 중 더 큰 값보다 크고 극댓값보다 작아야 해요.' },
 ]
+
+export const LEVEL_COUNT = LEVELS.length
 
 interface RangeRow {
   label: string
@@ -76,7 +80,8 @@ export default function ParameterGame({ onOpenViz }: Props) {
   const [idx, setIdx] = useState(0)
   const level = LEVELS[idx]
   const [k, setK] = useState(level.startK)
-  const [solved, setSolved] = useState<Set<number>>(new Set())
+  const progress = useProgress()
+  const solved = progress.solved
   const [celebrate, setCelebrate] = useState(false)
   const [showExt, setShowExt] = useState(false)
   const { h } = useWindowSize()
@@ -86,7 +91,7 @@ export default function ParameterGame({ onOpenViz }: Props) {
   const roots = useMemo(() => solveEqualsK(level.coeffs, k), [level, k])
   const count = roots.length
   const success = count === level.target
-  const isSolved = solved.has(idx)
+  const isSolved = solved.includes(idx)
   const ext = useMemo(() => extrema(level.coeffs), [level])
   const rows = useMemo(() => rangeRows(level.coeffs), [level])
   const answers = rows.filter((r) => r.count === level.target)
@@ -96,8 +101,8 @@ export default function ParameterGame({ onOpenViz }: Props) {
   )
 
   useEffect(() => {
-    if (success && !solved.has(idx)) {
-      setSolved((s) => new Set(s).add(idx))
+    if (success && !solved.includes(idx)) {
+      markSolved(idx)
       setCelebrate(true)
       window.clearTimeout(timer.current)
       timer.current = window.setTimeout(() => setCelebrate(false), 2200)
@@ -137,7 +142,7 @@ export default function ParameterGame({ onOpenViz }: Props) {
     label(ctx, 'y = f(x)', 10, 20, COLORS.axis, 'left', '700 13px system-ui')
   }
 
-  const done = solved.size === LEVELS.length
+  const done = solved.length === LEVELS.length
 
   return (
     <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(280px,320px)] md:gap-4">
@@ -147,9 +152,11 @@ export default function ParameterGame({ onOpenViz }: Props) {
             미션 {idx + 1} / {LEVELS.length}
           </p>
           <h2 className="mt-1 text-lg font-extrabold text-slate-800">
-            방정식 f(x) = k 가 서로 다른 <span className="text-indigo-600">{level.target}개</span>의 실근을 갖도록 k를 조절하세요.
+            방정식 <Tex>{"f(x) = k"}</Tex> 가 서로 다른 <span className="text-indigo-600">{level.target}개</span>의 실근을 갖도록 k를 조절하세요.
           </h2>
-          <p className="mt-1 font-mono text-sm text-slate-500">f(x) = {formatPoly(level.coeffs)}</p>
+          <p className="mt-1 overflow-x-auto text-base text-slate-600">
+            <Tex>{`f(x) = ${formatPolyTex(level.coeffs)}`}</Tex>
+          </p>
         </div>
 
         <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -286,7 +293,7 @@ export default function ParameterGame({ onOpenViz }: Props) {
                 className={`h-11 w-11 rounded-lg text-sm font-bold ${
                   i === idx
                     ? 'bg-indigo-600 text-white'
-                    : solved.has(i)
+                    : solved.includes(i)
                       ? 'bg-green-100 text-green-700'
                       : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
                 }`}

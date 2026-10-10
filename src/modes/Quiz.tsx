@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { CheckCircle2, LineChart, Lightbulb, RotateCcw, Send, Trash2, XCircle } from 'lucide-react'
 import GraphCanvas from '../components/GraphCanvas'
 import SignTable from '../components/SignTable'
+import Tex from '../components/Tex'
 import {
   COLORS,
   dot,
@@ -18,7 +19,7 @@ import {
   criticalPoints,
   evalPoly,
   fmt,
-  formatPoly,
+  formatPolyTex,
   fromRoots,
   integrate,
   polyMul,
@@ -26,6 +27,7 @@ import {
   type CriticalPoint,
 } from '../utils/math'
 import { clamp, useWindowSize } from '../utils/hooks'
+import { recordQuiz, useProgress } from '../utils/progress'
 
 const XMIN = -5
 const XMAX = 5
@@ -155,11 +157,14 @@ function shapeView(f: Coeffs): View {
 interface Result {
   ok: boolean
   lines: { ok: boolean; text: string }[]
+  /** 약점 분석용: 세부 기능별 맞음/틀림 */
+  skills: { id: string; ok: boolean }[]
 }
 
 function grade(p: Problem, markers: Marker[], choice: number | null): Result {
   const lines: Result['lines'] = []
   let ok = true
+  const skills: Result['skills'] = []
   const real = p.crit.filter((c) => c.type !== 'flat')
 
   for (const c of p.crit) {
@@ -168,6 +173,7 @@ function grade(p: Problem, markers: Marker[], choice: number | null): Result {
     if (c.type === 'flat') {
       const bad = m !== undefined
       if (bad) ok = false
+      skills.push({ id: 'flat', ok: !bad })
       lines.push({
         ok: !bad,
         text: `x = ${a}에서 f′(x) = 0이지만 f′(x)의 부호가 바뀌지 않으므로 극값이 아닙니다.${bad ? ' (표시한 마커는 잘못되었습니다.)' : ''}`,
@@ -178,6 +184,8 @@ function grade(p: Problem, markers: Marker[], choice: number | null): Result {
       c.type === 'max'
         ? `x = ${a}에서 f′(x)의 부호가 +에서 −로 변하므로 극댓값입니다. (극댓값 ${fmt(c.y)})`
         : `x = ${a}에서 f′(x)의 부호가 −에서 +로 변하므로 극솟값입니다. (극솟값 ${fmt(c.y)})`
+    skills.push({ id: 'find', ok: m !== undefined })
+    if (m) skills.push({ id: 'kind', ok: m.type === c.type })
     if (!m) {
       ok = false
       lines.push({ ok: false, text: `${expl} → 마커를 놓지 않았어요.` })
@@ -190,6 +198,7 @@ function grade(p: Problem, markers: Marker[], choice: number | null): Result {
   for (const m of markers) {
     if (!p.crit.some((c) => Math.abs(c.x - m.x) < 0.26)) {
       ok = false
+      skills.push({ id: 'find', ok: false })
       lines.push({ ok: false, text: `x = ${fmt(m.x, 1)}에서는 f′(x) = 0이 아니므로 극값이 될 수 없습니다.` })
     }
   }
@@ -199,6 +208,7 @@ function grade(p: Problem, markers: Marker[], choice: number | null): Result {
 
   const shapeOk = choice === p.correct
   if (!shapeOk) ok = false
+  skills.push({ id: 'shape', ok: shapeOk })
   lines.push({
     ok: shapeOk,
     text: shapeOk
@@ -207,7 +217,7 @@ function grade(p: Problem, markers: Marker[], choice: number | null): Result {
         ? '개형을 선택하지 않았어요. f′ > 0인 구간에서 증가, f′ < 0인 구간에서 감소하는 그래프를 찾아보세요.'
         : '개형이 달라요. f′ > 0인 구간에서 증가, f′ < 0인 구간에서 감소하는지 확인해 보세요.',
   })
-  return { ok, lines }
+  return { ok, lines, skills }
 }
 
 const HINTS = [
@@ -225,7 +235,7 @@ export default function Quiz({ onOpenViz }: { onOpenViz?: (f: Coeffs) => void })
   const [result, setResult] = useState<Result | null>(null)
   const [hover, setHover] = useState<number | null>(null)
   const [hint, setHint] = useState(0)
-  const [score, setScore] = useState({ right: 0, total: 0 })
+  const score = useProgress().kinds.shape
   const resultRef = useRef<HTMLDivElement>(null)
   const { h } = useWindowSize()
 
@@ -267,7 +277,7 @@ export default function Quiz({ onOpenViz }: { onOpenViz?: (f: Coeffs) => void })
   const submit = () => {
     const r = grade(problem, markers, choice)
     setResult(r)
-    setScore((s) => ({ right: s.right + (r.ok ? 1 : 0), total: s.total + 1 }))
+    recordQuiz('shape', r.ok, r.skills)
   }
 
   const draw = (ctx: CanvasRenderingContext2D, tf: Tf) => {
@@ -347,7 +357,7 @@ export default function Quiz({ onOpenViz }: { onOpenViz?: (f: Coeffs) => void })
         <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
             <p className="text-sm text-slate-700">
-              <b>문제.</b> <i>y = f ′(x)</i> 의 그래프입니다. 극값의 위치를 표시하고 <i>f(x)</i>의 개형을 고르세요.
+              <b>문제.</b> <Tex>{"y = f'(x)"}</Tex> 의 그래프입니다. 극값의 위치를 표시하고 <Tex>{"f(x)"}</Tex>의 개형을 고르세요.
             </p>
             <div className="flex items-center gap-2">
               <div className="inline-flex overflow-hidden rounded-lg border border-slate-300 text-xs font-bold">
@@ -486,7 +496,9 @@ export default function Quiz({ onOpenViz }: { onOpenViz?: (f: Coeffs) => void })
               <div className="rounded-lg bg-white">
                 <SignTable f={problem.f} />
               </div>
-              <p className="mt-2 font-mono text-xs text-slate-500">f′(x) = {formatPoly(problem.deriv)}</p>
+              <p className="mt-2 overflow-x-auto text-sm text-slate-600">
+                <Tex>{`f'(x) = ${formatPolyTex(problem.deriv)}`}</Tex>
+              </p>
               {onOpenViz && (
                 <button
                 onClick={() => onOpenViz(problem.f)}
